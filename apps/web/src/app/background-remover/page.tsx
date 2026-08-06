@@ -12,9 +12,24 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   AlertCircle,
   CheckCircle2,
+  Grid2X2,
   Image as ImageIcon,
+  Maximize2,
+  SlidersHorizontal,
+  Square,
   UploadCloudIcon,
 } from "lucide-react";
 import {
@@ -45,6 +60,8 @@ const ENGINES = [
 
 export default function DashboardPage() {
   const [sourceImage, setSourceImage] = useState<string | null>(null);
+  const [layoutMode, setLayoutMode] = useState<"grid" | "single">("grid");
+  const [viewMode, setViewMode] = useState<"slider" | "result">("slider");
   const [bgMode, setBgMode] = useState<
     "checkerboard" | "magenta" | "green" | "custom"
   >("checkerboard");
@@ -59,23 +76,60 @@ export default function DashboardPage() {
       setSourceImage(url);
 
       // Reset results to processing
-      setResults(ENGINES.map((e) => ({ ...e, status: "processing" })));
+      setResults(
+        ENGINES.map((e) => ({
+          ...e,
+          status: "processing",
+          resultImage: undefined,
+          error: undefined,
+          metrics: undefined,
+        })),
+      );
 
-      // Simulate processing for UI (later replaced with real websocket logic)
-      setTimeout(() => {
+      const wsUrl = process.env.NEXT_PUBLIC_WS_GATEWAY_URL ||
+        "ws://localhost:8080";
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        // Send binary data
+        file.arrayBuffer().then((buffer) => {
+          ws.send(buffer);
+        });
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === "ENGINE_COMPLETE") {
+            setResults((prev) =>
+              prev.map((e) => {
+                if (e.id === data.engine) {
+                  return {
+                    ...e,
+                    status: data.status === "failed" ? "failed" : "completed",
+                    resultImage: data.resultImageBase64,
+                    error: data.error,
+                    metrics: data.metrics,
+                  };
+                }
+                return e;
+              })
+            );
+          }
+        } catch (err) {
+          console.error("Failed to parse websocket message", err);
+        }
+      };
+
+      ws.onerror = () => {
         setResults((prev) =>
-          prev.map((e, idx) => ({
+          prev.map((e) => ({
             ...e,
-            status: "completed",
-            resultImage: url, // just for demo UI
-            metrics: {
-              latency: 1200 + idx * 500,
-              rtt: 1350 + idx * 500,
-              bbox: "{ x: 10, y: 10, w: 500, h: 500 }",
-            },
+            status: e.status === "processing" ? "failed" : e.status,
+            error: "WebSocket connection error",
           }))
         );
-      }, 3000);
+      };
     }
   }, []);
 
@@ -105,7 +159,7 @@ export default function DashboardPage() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-background px-4">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-background px-4 rounded-t-xl">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4 my-auto" />
           <h1 className="text-sm font-semibold tracking-tight">
@@ -113,6 +167,71 @@ export default function DashboardPage() {
           </h1>
 
           <div className="ml-auto flex items-center space-x-2">
+            <div className="flex items-center space-x-1 border-r pr-2 mr-2">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      size="icon"
+                      variant={layoutMode === "grid" ? "secondary" : "ghost"}
+                      className="h-8 w-8"
+                      onClick={() => setLayoutMode("grid")}
+                    >
+                      <Grid2X2 className="h-4 w-4" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>Grid Layout</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      size="icon"
+                      variant={layoutMode === "single" ? "secondary" : "ghost"}
+                      className="h-8 w-8"
+                      onClick={() => setLayoutMode("single")}
+                    >
+                      <Square className="h-4 w-4" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>Single Column Layout</TooltipContent>
+              </Tooltip>
+            </div>
+
+            <div className="flex items-center space-x-1 border-r pr-2 mr-2">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      size="icon"
+                      variant={viewMode === "slider" ? "secondary" : "ghost"}
+                      className="h-8 w-8"
+                      onClick={() => setViewMode("slider")}
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>Slider View</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      size="icon"
+                      variant={viewMode === "result" ? "secondary" : "ghost"}
+                      className="h-8 w-8"
+                      onClick={() => setViewMode("result")}
+                    >
+                      <ImageIcon className="h-4 w-4" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>Result Image Only</TooltipContent>
+              </Tooltip>
+            </div>
             <span className="text-xs text-muted-foreground mr-2">
               Background:
             </span>
@@ -184,7 +303,11 @@ export default function DashboardPage() {
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div
+                  className={layoutMode === "grid"
+                    ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+                    : "flex flex-col gap-6 w-full max-w-5xl mx-auto"}
+                >
                   {/* Source Image Card */}
                   <div className="flex flex-col rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden">
                     <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
@@ -192,11 +315,11 @@ export default function DashboardPage() {
                         Original Image
                       </span>
                     </div>
-                    <div className="relative aspect-[3/4] bg-muted flex items-center justify-center overflow-hidden">
+                    <div className="relative bg-muted flex items-center justify-center overflow-hidden">
                       <img
                         src={sourceImage}
                         alt="Source"
-                        className="object-cover w-full h-full"
+                        className="w-full h-auto object-contain"
                       />
                     </div>
                   </div>
@@ -208,68 +331,143 @@ export default function DashboardPage() {
                       className="flex flex-col rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden"
                     >
                       <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
-                        <span className="font-medium text-sm truncate pr-2">
-                          {engine.name}
-                        </span>
-                        {engine.status === "processing" && (
-                          <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-                        )}
-                        {engine.status === "completed" && (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                        )}
-                        {engine.status === "failed" && (
-                          <AlertCircle className="h-4 w-4 text-red-500" />
-                        )}
-                      </div>
-
-                      <div
-                        className="relative aspect-[3/4] overflow-hidden flex items-center justify-center"
-                        style={getBgStyle()}
-                      >
-                        {engine.status === "pending" && (
-                          <div className="text-sm text-muted-foreground">
-                            Waiting for input...
-                          </div>
-                        )}
-
-                        {engine.status === "processing" && (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-10 space-y-4">
-                            <Skeleton className="h-32 w-32 rounded-full" />
-                            <div className="flex flex-col items-center gap-1">
-                              <span className="text-sm font-medium animate-pulse">
-                                Processing tensor...
-                              </span>
-                              <span className="text-xs text-muted-foreground font-mono">
-                                0.0ms
-                              </span>
-                            </div>
-                          </div>
-                        )}
+                        <div className="flex items-center space-x-2 truncate">
+                          <span className="font-medium text-sm truncate pr-2">
+                            {engine.name}
+                          </span>
+                          {engine.status === "processing" && (
+                            <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                          )}
+                          {engine.status === "completed" && (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          )}
+                          {engine.status === "failed" && (
+                            <AlertCircle className="h-4 w-4 text-red-500" />
+                          )}
+                        </div>
 
                         {engine.status === "completed" && engine.resultImage &&
                           (
-                            <ReactCompareSlider
-                              className="w-full h-full"
-                              itemOne={
-                                <ReactCompareSliderImage
-                                  src={sourceImage}
-                                  alt="Original"
-                                />
-                              }
-                              itemTwo={
-                                <ReactCompareSliderImage
-                                  src={engine.resultImage}
-                                  alt="Result"
-                                />
-                              }
-                            />
+                            <Dialog>
+                              <DialogTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 ml-2 shrink-0"
+                                  >
+                                    <Maximize2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                }
+                              />
+                              <DialogContent className="max-w-[95vw] w-full max-h-[95vh] h-full flex flex-col p-0 overflow-hidden bg-muted/50 border-none shadow-2xl">
+                                <DialogTitle className="sr-only">
+                                  Fullscreen View
+                                </DialogTitle>
+                                <div className="flex-1 w-full h-full p-4 md:p-8 flex items-center justify-center">
+                                  {viewMode === "slider"
+                                    ? (
+                                      <ReactCompareSlider
+                                        className="w-full h-full max-h-[85vh] rounded-lg shadow-2xl border bg-background"
+                                        style={getBgStyle()}
+                                        itemOne={
+                                          <ReactCompareSliderImage
+                                            src={sourceImage}
+                                            alt="Original"
+                                            style={{ objectFit: "contain" }}
+                                          />
+                                        }
+                                        itemTwo={
+                                          <ReactCompareSliderImage
+                                            src={engine.resultImage}
+                                            alt="Result"
+                                            style={{ objectFit: "contain" }}
+                                          />
+                                        }
+                                      />
+                                    )
+                                    : (
+                                      <img
+                                        src={engine.resultImage}
+                                        alt="Result"
+                                        className="w-full h-full max-h-[85vh] object-contain rounded-lg shadow-2xl border"
+                                        style={getBgStyle()}
+                                      />
+                                    )}
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+                          )}
+                      </div>
+
+                      <div
+                        className="relative overflow-hidden flex items-center justify-center"
+                        style={getBgStyle()}
+                      >
+                        {/* Hidden image to force exact aspect ratio of the original image without cropping */}
+                        <img
+                          src={sourceImage}
+                          className="w-full h-auto opacity-0 pointer-events-none"
+                          aria-hidden="true"
+                        />
+
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          {engine.status === "pending" && (
+                            <div className="text-sm text-muted-foreground">
+                              Waiting for input...
+                            </div>
                           )}
 
-                        {engine.status === "failed" && (
-                          <div className="text-sm text-red-500 font-medium px-4 text-center">
-                            {engine.error || "Inference failed"}
-                          </div>
-                        )}
+                          {engine.status === "processing" && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-10 space-y-4">
+                              <Skeleton className="h-32 w-32 rounded-full" />
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-sm font-medium animate-pulse">
+                                  Processing tensor...
+                                </span>
+                                <span className="text-xs text-muted-foreground font-mono">
+                                  0.0ms
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {engine.status === "completed" &&
+                            engine.resultImage &&
+                            (viewMode === "slider"
+                              ? (
+                                <ReactCompareSlider
+                                  className="w-full h-full"
+                                  itemOne={
+                                    <ReactCompareSliderImage
+                                      src={sourceImage}
+                                      alt="Original"
+                                      style={{ objectFit: "contain" }}
+                                    />
+                                  }
+                                  itemTwo={
+                                    <ReactCompareSliderImage
+                                      src={engine.resultImage}
+                                      alt="Result"
+                                      style={{ objectFit: "contain" }}
+                                    />
+                                  }
+                                />
+                              )
+                              : (
+                                <img
+                                  src={engine.resultImage}
+                                  alt="Result"
+                                  className="absolute inset-0 w-full h-full object-contain"
+                                />
+                              ))}
+
+                          {engine.status === "failed" && (
+                            <div className="text-sm text-red-500 font-medium px-4 text-center">
+                              {engine.error || "Inference failed"}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {/* Metrics Drawer */}

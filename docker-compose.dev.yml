@@ -1,0 +1,16 @@
+services:
+  worker-python:
+    build:
+      context: ./apps/worker-python
+      dockerfile: Dockerfile
+    image: almari-poc-worker-python:dev
+    ports:
+      - "8000:8000"
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+    volumes:
+      - model_cache:/root/.cache/huggingface
+      - model_cache:/root/.u2net
+
+volumes:
+  model_cache:

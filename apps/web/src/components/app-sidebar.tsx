@@ -3,10 +3,12 @@
 import * as React from "react";
 import { LayersIcon, ScissorsIcon, Settings2Icon } from "lucide-react";
 
+import { getSessionExpiry } from "@/actions/auth";
 import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
+  SidebarFooter,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -69,6 +71,48 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           ))}
         </SidebarMenu>
       </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SessionTimer />
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
+  );
+}
+
+function SessionTimer() {
+  const [timeLeft, setTimeLeft] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    getSessionExpiry().then((expiryMs) => {
+      if (expiryMs) {
+        const remaining = Math.max(0, Math.floor((expiryMs - Date.now()) / 1000));
+        setTimeLeft(remaining);
+      }
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (timeLeft === null) return;
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => (prev && prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [timeLeft]);
+
+  if (timeLeft === null) return null;
+
+  const minutes = Math.floor(timeLeft / 60);
+  const seconds = timeLeft % 60;
+
+  return (
+    <div className="flex items-center justify-between p-2 text-sm text-sidebar-foreground/70">
+      <span>Session ends in:</span>
+      <span className="font-mono font-medium">
+        {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
+      </span>
+    </div>
   );
 }

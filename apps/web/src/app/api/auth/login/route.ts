@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { TOTP } from "otpauth"
-import { signSessionToken } from "@/lib/auth"
+import { signSessionToken, getSessionDurationMs } from "@/lib/auth"
 
 function verifyTOTP(token: string) {
   const secret = process.env.TOTP_SECRET
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
-        maxAge: 15 * 60, // 15 minutes
+        maxAge: Math.floor(getSessionDurationMs() / 1000),
         path: "/",
       })
 

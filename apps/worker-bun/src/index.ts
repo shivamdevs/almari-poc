@@ -28,6 +28,7 @@ serve({
           }
         })
       } catch (err: any) {
+        console.error("Inference error:", err)
         return new Response(err.message, { status: 500 })
       }
     }

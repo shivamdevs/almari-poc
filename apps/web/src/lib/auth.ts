@@ -4,11 +4,20 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "default_unsafe_secret_for_poc_only"
 )
 
+export function getSessionDurationMs() {
+  const envVal = process.env.SESSION_DURATION
+  if (envVal) return parseInt(envVal, 10)
+  return process.env.NODE_ENV === "development" ? 60 * 60 * 1000 : 15 * 60 * 1000
+}
+
 export async function signSessionToken() {
+  const durationMs = getSessionDurationMs()
+  const exp = Math.floor(Date.now() / 1000) + Math.floor(durationMs / 1000)
+
   const token = await new SignJWT({ authed: true })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("15m")
+    .setExpirationTime(exp)
     .sign(JWT_SECRET)
 
   return token

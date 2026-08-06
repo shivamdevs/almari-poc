@@ -1,7 +1,7 @@
 import { serve } from "bun"
 
-const WORKER_PYTHON_URL = process.env.WORKER_PYTHON_URL || "http://worker-python:8000"
-const WORKER_BUN_URL = process.env.WORKER_BUN_URL || "http://worker-bun:8001"
+const WORKER_PYTHON_URL = process.env.WORKER_PYTHON_URL || "http://localhost:8000"
+const WORKER_BUN_URL = process.env.WORKER_BUN_URL || "http://localhost:8001"
 
 serve({
   port: 8080,

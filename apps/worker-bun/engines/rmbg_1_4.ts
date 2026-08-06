@@ -19,7 +19,7 @@ async function init() {
         do_normalize: true,
         do_pad: false,
         do_rescale: true,
-        do_resize: true,
+        do_resize: false, // Prevent canvas usage in Bun
         image_mean: [0.5, 0.5, 0.5],
         feature_extractor_type: "ImageFeatureExtractor",
         image_std: [1, 1, 1],
@@ -38,34 +38,59 @@ init()
 export async function removeBackground(imageBuffer: ArrayBuffer): Promise<ArrayBuffer> {
   await init()
   
-  // Use sharp to read the image buffer and convert to RawImage format
   const image = sharp(imageBuffer)
   const metadata = await image.metadata()
   
-  const { data, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  if (!metadata.width || !metadata.height) {
+    throw new Error("Could not determine image dimensions")
+  }
+
+  // 1. Resize to 1024x1024 using sharp instead of canvas
+  const resizedForModel = await image
+    .clone()
+    .resize(1024, 1024, { fit: "fill" })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
   
   const rawImage = new RawImage(
-    new Uint8ClampedArray(data),
-    info.width,
-    info.height,
-    info.channels
+    new Uint8ClampedArray(resizedForModel.data),
+    resizedForModel.info.width,
+    resizedForModel.info.height,
+    resizedForModel.info.channels
   )
 
-  // Preprocess
+  // 2. Preprocess (normalization only, no resize)
   const { pixel_values } = await processor(rawImage)
   
-  // Predict
+  // 3. Predict
   const { output } = await model({ input: pixel_values })
   
-  // Read mask
-  const mask = await RawImage.fromTensor(output[0].mul(255).to('uint8')).resize(rawImage.width, rawImage.height)
+  // 4. Extract mask array (1024x1024, 1 channel)
+  const maskData = output[0].mul(255).to('uint8').data
+  const maskBuffer = Buffer.from(maskData)
   
-  // Apply mask to original image
-  const maskBuffer = Buffer.from(mask.data)
-  
-  const finalImage = await sharp(imageBuffer)
+  // 5. Resize mask back to original dimensions using sharp
+  const resizedMaskBuffer = await sharp(maskBuffer, {
+    raw: {
+      width: 1024,
+      height: 1024,
+      channels: 1
+    }
+  })
+    .resize(metadata.width, metadata.height, { fit: "fill" })
+    .toBuffer()
+
+  // 6. Apply mask to original image
+  const finalImage = await sharp(Buffer.from(imageBuffer))
     .ensureAlpha()
-    .joinChannel(maskBuffer) // Extract alpha channel
+    .joinChannel(Buffer.from(resizedMaskBuffer), {
+      raw: {
+        width: metadata.width,
+        height: metadata.height,
+        channels: 1
+      }
+    }) // Replace alpha channel
     .png()
     .toBuffer()
 

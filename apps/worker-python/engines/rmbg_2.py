@@ -9,9 +9,11 @@ model_id = "briaai/RMBG-2.0"
 # Specify trust_remote_code=True since BiRefNet architecture requires it in some versions,
 # but briaai/RMBG-2.0 is a standard AutoModelForImageSegmentation if using transformers >= 4.45
 # We'll use the standard initialization for it.
+import os
 device = "cpu"
 try:
-    model = AutoModelForImageSegmentation.from_pretrained(model_id, trust_remote_code=True)
+    token = os.environ.get("HF_TOKEN")
+    model = AutoModelForImageSegmentation.from_pretrained(model_id, trust_remote_code=True, token=token)
     model.to(device)
     model.eval()
 except Exception as e:

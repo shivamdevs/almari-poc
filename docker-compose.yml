@@ -37,8 +37,11 @@ services:
     image: ${REGISTRY:-ghcr.io}/${REPO:-shivamdevs/almari-poc}/worker-python:${TAG:-latest}
     ports:
       - "8000:8000"
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
     volumes:
       - model_cache:/root/.cache/huggingface
+      - model_cache:/root/.u2net
 
   worker-bun:
     build:
