@@ -2,9 +2,12 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { ScissorsIcon } from "lucide-react"
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp"
 
 export default function LoginPage() {
   const [code, setCode] = useState("")
@@ -12,11 +15,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const submitCode = async (otpCode: string) => {
     setError("")
 
-    if (code.length !== 6) {
+    if (otpCode.length !== 6) {
       setError("Please enter a 6-digit code")
       return
     }
@@ -29,7 +31,7 @@ export default function LoginPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code: otpCode }),
       })
 
       const data = await res.json()
@@ -39,6 +41,7 @@ export default function LoginPage() {
         router.refresh()
       } else {
         setError(data.error || "Authentication failed")
+        setCode("") // Clear input on failure
       }
     } catch (err) {
       setError("Network error. Please try again.")
@@ -62,37 +65,38 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Input
-              id="code"
-              name="code"
-              type="text"
-              inputMode="numeric"
-              pattern="\d*"
-              maxLength={6}
-              placeholder="000000"
-              required
-              className="text-center text-2xl tracking-[0.5em] font-mono h-14"
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              disabled={loading}
-              autoComplete="off"
-            />
+        <div className="flex flex-col items-center space-y-4">
+          <InputOTP
+            maxLength={6}
+            value={code}
+            onChange={(value) => setCode(value)}
+            onComplete={(value) => submitCode(value)}
+            disabled={loading}
+            autoFocus
+          >
+            <InputOTPGroup>
+              <InputOTPSlot index={0} />
+              <InputOTPSlot index={1} />
+              <InputOTPSlot index={2} />
+              <InputOTPSlot index={3} />
+              <InputOTPSlot index={4} />
+              <InputOTPSlot index={5} />
+            </InputOTPGroup>
+          </InputOTP>
+
+          <div className="h-4">
             {error && (
               <p className="text-sm text-red-500 font-medium text-center">
                 {error}
               </p>
             )}
+            {loading && !error && (
+              <p className="text-sm text-zinc-500 font-medium text-center">
+                Verifying...
+              </p>
+            )}
           </div>
-          <Button
-            type="submit"
-            className="w-full h-11"
-            disabled={loading || code.length !== 6}
-          >
-            {loading ? "Verifying..." : "Enter Lab"}
-          </Button>
-        </form>
+        </div>
       </div>
     </div>
   )

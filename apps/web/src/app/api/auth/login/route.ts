@@ -1,5 +1,23 @@
 import { NextResponse } from "next/server"
-import { verifyTOTP, signSessionToken } from "@/lib/auth"
+
+import { TOTP } from "otpauth"
+import { signSessionToken } from "@/lib/auth"
+
+function verifyTOTP(token: string) {
+  const secret = process.env.TOTP_SECRET
+  if (!secret) {
+    console.warn("TOTP_SECRET is not set in environment variables.")
+    if (process.env.NODE_ENV === "development") {
+      return token === "000000"
+    }
+    return false
+  }
+  
+  const totp = new TOTP({ secret })
+  const delta = totp.validate({ token, window: 1 })
+  
+  return delta !== null
+}
 
 export async function POST(request: Request) {
   try {

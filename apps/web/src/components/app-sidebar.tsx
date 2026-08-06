@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { LayersIcon, Settings2Icon, ScissorsIcon } from "lucide-react"
+import * as React from "react";
+import { LayersIcon, ScissorsIcon, Settings2Icon } from "lucide-react";
 
 import {
   Sidebar,
@@ -10,59 +10,65 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const navItems = [
   {
-    title: "Background Removal",
-    url: "/",
+    title: "Background Remover",
+    url: "/background-remover",
     icon: ScissorsIcon,
   },
-  {
-    title: "Cloth Stitching (VTO)",
-    url: "#",
-    icon: LayersIcon,
-  },
-  {
-    title: "Environment Metrics",
-    url: "#",
-    icon: Settings2Icon,
-  },
-]
+  // {
+  //   title: "Cloth Stitching (VTO)",
+  //   url: "#",
+  //   icon: LayersIcon,
+  // },
+  // {
+  //   title: "Environment Metrics",
+  //   url: "#",
+  //   icon: Settings2Icon,
+  // },
+];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const pathname = usePathname();
+
+  const isActive = (url: string) =>
+    pathname === url || pathname.startsWith(url);
+
   return (
     <Sidebar variant="inset" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <a href="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <span className="font-bold">AP</span>
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">Almari POC Lab</span>
-                </div>
-              </a>
+            <SidebarMenuButton size="lg" render={<Link href="/" />}>
+              <div className="flex size-8 items-center justify-center rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900">
+                <ScissorsIcon className="size-4" />
+              </div>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-medium">Almari POC Lab</span>
+              </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="mt-10">
         <SidebarMenu>
           {navItems.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild>
-                <a href={item.url}>
-                  <item.icon className="h-4 w-4" />
-                  <span>{item.title}</span>
-                </a>
+              <SidebarMenuButton
+                isActive={isActive(item.url)}
+                render={<Link href={item.url} />}
+              >
+                <item.icon className="h-4 w-4" />
+                <span>{item.title}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
       </SidebarContent>
     </Sidebar>
-  )
+  );
 }
