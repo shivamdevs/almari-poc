@@ -1,0 +1,215 @@
+"use client"
+
+import { useState, useCallback } from "react"
+import { useDropzone } from "react-dropzone"
+import { AppSidebar } from "@/components/app-sidebar"
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
+import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { UploadCloudIcon, Image as ImageIcon, Settings2Icon, CheckCircle2, AlertCircle } from "lucide-react"
+import { ReactCompareSlider, ReactCompareSliderImage } from 'react-compare-slider'
+
+type EngineStatus = "pending" | "processing" | "completed" | "failed"
+
+interface EngineResult {
+  id: string
+  name: string
+  status: EngineStatus
+  resultImage?: string
+  error?: string
+  metrics?: {
+    latency: number
+    rtt: number
+    bbox: string
+  }
+}
+
+const ENGINES = [
+  { id: "rmbg-2.0", name: "Bria RMBG 2.0 (BiRefNet)" },
+  { id: "rembg", name: "U²-Net (rembg)" },
+  { id: "rmbg-1.4", name: "RMBG-1.4 (Transformers.js)" },
+]
+
+export default function DashboardPage() {
+  const [sourceImage, setSourceImage] = useState<string | null>(null)
+  const [bgMode, setBgMode] = useState<"checkerboard" | "magenta" | "green" | "custom">("checkerboard")
+  const [results, setResults] = useState<EngineResult[]>(
+    ENGINES.map((e) => ({ ...e, status: "pending" }))
+  )
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    const file = acceptedFiles[0]
+    if (file) {
+      const url = URL.createObjectURL(file)
+      setSourceImage(url)
+      
+      // Reset results to processing
+      setResults(ENGINES.map((e) => ({ ...e, status: "processing" })))
+      
+      // Simulate processing for UI (later replaced with real websocket logic)
+      setTimeout(() => {
+        setResults((prev) => 
+          prev.map((e, idx) => ({
+            ...e,
+            status: "completed",
+            resultImage: url, // just for demo UI
+            metrics: {
+              latency: 1200 + idx * 500,
+              rtt: 1350 + idx * 500,
+              bbox: "{ x: 10, y: 10, w: 500, h: 500 }"
+            }
+          }))
+        )
+      }, 3000)
+    }
+  }, [])
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { "image/*": [".png", ".jpeg", ".jpg", ".webp"] },
+    maxFiles: 1,
+    maxSize: 15 * 1024 * 1024, // 15MB
+  })
+
+  // Background style computation
+  const getBgStyle = () => {
+    if (bgMode === "magenta") return { backgroundColor: "#FF00FF" }
+    if (bgMode === "green") return { backgroundColor: "#00FF00" }
+    if (bgMode === "checkerboard") return {
+      backgroundImage: `repeating-linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), repeating-linear-gradient(45deg, #ccc 25%, #fff 25%, #fff 75%, #ccc 75%, #ccc)`,
+      backgroundPosition: `0 0, 10px 10px`,
+      backgroundSize: `20px 20px`,
+    }
+    return {}
+  }
+
+  return (
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-background px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          <h1 className="text-sm font-semibold tracking-tight">Background Removal Suite</h1>
+          
+          <div className="ml-auto flex items-center space-x-2">
+            <span className="text-xs text-muted-foreground mr-2">Background:</span>
+            <Button size="sm" variant={bgMode === "checkerboard" ? "default" : "outline"} onClick={() => setBgMode("checkerboard")}>Checker</Button>
+            <Button size="sm" variant={bgMode === "magenta" ? "default" : "outline"} onClick={() => setBgMode("magenta")}>Magenta</Button>
+            <Button size="sm" variant={bgMode === "green" ? "default" : "outline"} onClick={() => setBgMode("green")}>Green</Button>
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-auto p-4 md:p-6 space-y-6">
+          {!sourceImage ? (
+            <div 
+              {...getRootProps()} 
+              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-12 transition-colors cursor-pointer min-h-[400px] ${
+                isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/25"
+              }`}
+            >
+              <input {...getInputProps()} />
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+                <UploadCloudIcon className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Drop your image here</h3>
+              <p className="text-sm text-muted-foreground mb-6">Supports PNG, JPG, WEBP up to 15MB</p>
+              <Button variant="secondary">Select File</Button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5" /> Source & Real-Time Output
+                </h2>
+                <Button variant="outline" size="sm" onClick={() => {
+                  setSourceImage(null)
+                  setResults(ENGINES.map((e) => ({ ...e, status: "pending" })))
+                }}>
+                  Upload New Image
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {/* Source Image Card */}
+                <div className="flex flex-col rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden">
+                  <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
+                    <span className="font-medium text-sm">Original Image</span>
+                  </div>
+                  <div className="relative aspect-[3/4] bg-muted flex items-center justify-center overflow-hidden">
+                    <img src={sourceImage} alt="Source" className="object-cover w-full h-full" />
+                  </div>
+                </div>
+
+                {/* Engine Result Cards */}
+                {results.map((engine) => (
+                  <div key={engine.id} className="flex flex-col rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden">
+                    <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
+                      <span className="font-medium text-sm truncate pr-2">{engine.name}</span>
+                      {engine.status === "processing" && <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse" />}
+                      {engine.status === "completed" && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                      {engine.status === "failed" && <AlertCircle className="h-4 w-4 text-red-500" />}
+                    </div>
+                    
+                    <div className="relative aspect-[3/4] overflow-hidden flex items-center justify-center" style={getBgStyle()}>
+                      {engine.status === "pending" && (
+                        <div className="text-sm text-muted-foreground">Waiting for input...</div>
+                      )}
+                      
+                      {engine.status === "processing" && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-10 space-y-4">
+                          <Skeleton className="h-32 w-32 rounded-full" />
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-sm font-medium animate-pulse">Processing tensor...</span>
+                            <span className="text-xs text-muted-foreground font-mono">0.0ms</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {engine.status === "completed" && engine.resultImage && (
+                        <ReactCompareSlider
+                          className="w-full h-full"
+                          itemOne={<ReactCompareSliderImage src={sourceImage} alt="Original" />}
+                          itemTwo={<ReactCompareSliderImage src={engine.resultImage} alt="Result" />}
+                        />
+                      )}
+
+                      {engine.status === "failed" && (
+                        <div className="text-sm text-red-500 font-medium px-4 text-center">
+                          {engine.error || "Inference failed"}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Metrics Drawer */}
+                    {engine.status === "completed" && engine.metrics && (
+                      <div className="p-3 bg-muted/10 text-xs space-y-1.5 border-t">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Latency</span>
+                          <span className="font-mono">{engine.metrics.latency}ms</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Round Trip</span>
+                          <span className="font-mono">{engine.metrics.rtt}ms</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Bounding Box</span>
+                          <span className="font-mono truncate ml-2" title={engine.metrics.bbox}>{engine.metrics.bbox}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
+  )
+}

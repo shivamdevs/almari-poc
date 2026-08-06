@@ -1,0 +1,52 @@
+version: "3.8"
+
+services:
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    image: ${REGISTRY:-ghcr.io}/${REPO:-shivamdevs/almari-poc}/web:${TAG:-latest}
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - TOTP_SECRET=${TOTP_SECRET}
+      - JWT_SECRET=${JWT_SECRET}
+      - WS_GATEWAY_URL=ws://ws-gateway:8080
+    depends_on:
+      - ws-gateway
+
+  ws-gateway:
+    build:
+      context: ./apps/ws-gateway
+      dockerfile: Dockerfile
+    image: ${REGISTRY:-ghcr.io}/${REPO:-shivamdevs/almari-poc}/ws-gateway:${TAG:-latest}
+    ports:
+      - "8080:8080"
+    environment:
+      - WORKER_PYTHON_URL=http://worker-python:8000
+      - WORKER_BUN_URL=http://worker-bun:8001
+    depends_on:
+      - worker-python
+      - worker-bun
+
+  worker-python:
+    build:
+      context: ./apps/worker-python
+      dockerfile: Dockerfile
+    image: ${REGISTRY:-ghcr.io}/${REPO:-shivamdevs/almari-poc}/worker-python:${TAG:-latest}
+    ports:
+      - "8000:8000"
+    volumes:
+      - model_cache:/root/.cache/huggingface
+
+  worker-bun:
+    build:
+      context: ./apps/worker-bun
+      dockerfile: Dockerfile
+    image: ${REGISTRY:-ghcr.io}/${REPO:-shivamdevs/almari-poc}/worker-bun:${TAG:-latest}
+    ports:
+      - "8001:8001"
+
+volumes:
+  model_cache:
